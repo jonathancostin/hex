@@ -62,6 +62,8 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Say \"comma\", \"colon\", \"hashtag\", \"underscore\", or \"slash\" to insert the symbol joined to its words", "Diga “comma”, “colon”, “hashtag”, “underscore” ou “slash” para inserir o símbolo junto às palavras"),
     ("Remove filler words", "Remover vícios de linguagem"),
     ("Remove filler words such as um and uh from dictations, without an AI model", "Remove dos ditados vícios de linguagem como “um” e “uh”, sem um modelo de IA"),
+    ("Skip pauses", "Pular pausas"),
+    ("Shorten long pauses before transcribing a finished dictation, so it pastes sooner", "Encurta as pausas longas antes de transcrever um ditado concluído, para colar mais rápido"),
     ("Sort and filter models", "Ordenar e filtrar modelos"),
     ("Sort the Local transcription picker by size or name and show only models for the saved language", "Ordena a lista de transcrição local por tamanho ou nome e mostra só os modelos do idioma salvo"),
     ("By recommendation", "Por recomendação"),

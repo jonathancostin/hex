@@ -834,7 +834,8 @@ Completed long recording                  // dictate.model-windows
 └── Other GGUF models -> Existing backend-advertised input limit
     -> Transcribe each chunk -> Join text in original order
 
-Chunking bounds inference, not capture duration. No silence is removed.
+Chunking bounds inference, not capture duration. No silence is removed, unless
+Labs › Skip pauses (Linux, Windows) shortened the clip's long pauses first.
 ```
 
 The shared `max_audio_chunk_samples` policy in

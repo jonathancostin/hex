@@ -37,6 +37,7 @@ Feature             Pane  Toggle (settings.json, hex settings)   On: what it doe
 ├── Spoken formatting no labs.spoken_formatting      spoken "new line"/"line break", "new paragraph", "open/close quote" become line breaks and quotation marks (#630)
 ├── Spoken symbols  no    labs.spoken_symbols          spoken "hashtag", "underscore", "comma", … become symbols joined to their words: "#release", "my_variable", "done, thanks" (#678)
 ├── Remove filler words no labs.filler_words          um, umm, uh, uhh, erm, er, ah leave dictations, with no model (#631)
+├── Skip pauses     no    labs.skip_pauses             (Linux, Windows) a finished dictation's pauses over 700 ms shrink to their first 400 ms and last 300 ms before the whole clip is transcribed
 ├── Subtitle export no    labs.subtitle_export         (macOS)   hex meetings show --srt|--vtt writes a meeting as timed subtitles (#633)
 ├── Second dictation shortcut no labs.second_dictation_shortcut + second_dictation_hotkey (macOS)
 │                                        another shortcut dictates like the main one (#627); General shows its recorder while on
@@ -238,6 +239,24 @@ exactly as before. Checks: the tests in
 [panes.rs](../../src/rune_ui/tests/panes.rs). Not yet observed: a real
 dictation with the toggle on; the Labs page goldens need regenerating on
 Linux with the new row.
+
+Skip pauses (`skip-pauses`, Linux and Windows): while on,
+`TranscriptionEngine::finish` in
+[transcription/engine.rs](../../src/transcription/engine.rs) reads
+`labs::skip_pauses()` when a dictation's whole clip is transcribed (no live
+stream, or a stream that fell back) and runs
+`pause_segmenter::shorten_pauses` before padding the clip, so the model reads
+less audio and the dictation pastes sooner. Only frames at the noise floor
+count as pause (`SpeechFrames::is_quiet`, the test the live stream's
+`PauseCap` uses), so quiet speech over room noise is kept. Every pause longer
+than 700 ms keeps its first 400 ms and last 300 ms; shorter pauses and word
+gaps are untouched, and a clip with no frame above the floor (#841) is
+transcribed whole. process.log notes `skipped_ms` when audio was cut. A live
+stream that finishes the dictation, macOS, meetings, and Annotate are
+unchanged. Checks: the `skip_pauses_*` tests in
+[transcription/pause_segmenter.rs](../../src/transcription/pause_segmenter.rs);
+`skip_pauses_is_its_own_bit_and_off_by_default` in
+[labs.rs](../../src/labs.rs).
 
 Subtitle export (`subtitle-export`, issue 633, macOS like Meetings; its row
 shows wherever Meetings does): while on, `hex meetings show <id> --srt` or

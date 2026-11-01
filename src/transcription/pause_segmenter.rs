@@ -137,6 +137,62 @@ const fn samples(duration: Duration) -> usize {
     duration.as_millis() as usize * SAMPLE_RATE / 1_000
 }
 
+/// Pause audio Labs › Skip pauses keeps at the start of each long pause, so
+/// the words before it still end on silence.
+pub(crate) const CLIP_PAUSE_HEAD_SAMPLES: usize = SAMPLE_RATE * 2 / 5;
+/// Pause audio kept just before speech resumes.
+pub(crate) const CLIP_PAUSE_TAIL_SAMPLES: usize = SAMPLE_RATE * 3 / 10;
+
+/// Labs › Skip pauses: shortens every pause in a whole 16 kHz clip longer
+/// than head plus tail (700 ms) to its first 400 ms and last 300 ms, so the
+/// model reads less audio, and returns how many samples it removed. Only
+/// frames at the noise floor count as pause (`SpeechFrames::is_quiet`), the
+/// test `PauseCap` uses on live streams. A clip with no frame above the floor
+/// is left whole: the floor misjudged the microphone (#841), not a silent
+/// dictation, which the silence gate already discarded.
+pub(crate) fn shorten_pauses(clip: &mut Vec<f32>) -> usize {
+    let keep = CLIP_PAUSE_HEAD_SAMPLES + CLIP_PAUSE_TAIL_SAMPLES;
+    let mut speech = SpeechFrames::default();
+    let mut cuts = Vec::new();
+    let mut pause_start = None;
+    let mut heard = false;
+    for (index, frame) in clip.as_chunks::<FRAME_SAMPLES>().0.iter().enumerate() {
+        if speech.is_quiet(frame) {
+            pause_start.get_or_insert(index * FRAME_SAMPLES);
+            continue;
+        }
+        heard = true;
+        let at = index * FRAME_SAMPLES;
+        if let Some(start) = pause_start.take()
+            && at - start > keep
+        {
+            cuts.push(start + CLIP_PAUSE_HEAD_SAMPLES..at - CLIP_PAUSE_TAIL_SAMPLES);
+        }
+    }
+    if !heard {
+        return 0;
+    }
+    // A pause still open at the end runs through the partial last frame.
+    if let Some(start) = pause_start
+        && clip.len() - start > keep
+    {
+        cuts.push(start + CLIP_PAUSE_HEAD_SAMPLES..clip.len() - CLIP_PAUSE_TAIL_SAMPLES);
+    }
+    // Compact in place: each kept run moves down over the cuts before it.
+    let mut write = 0;
+    let mut read = 0;
+    for cut in &cuts {
+        clip.copy_within(read..cut.start, write);
+        write += cut.start - read;
+        read = cut.end;
+    }
+    clip.copy_within(read.., write);
+    write += clip.len() - read;
+    let removed = clip.len() - write;
+    clip.truncate(write);
+    removed
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -246,5 +302,48 @@ pub(crate) mod tests {
         let mut audio = vec![0.0; SAMPLE_RATE * 5];
         audio.extend(utterance(&[(2_000, 0)], -70.0));
         assert!(cuts(&audio, 320).is_empty());
+    }
+
+    #[test]
+    fn skip_pauses_keeps_the_ends_of_a_long_pause_and_every_word() {
+        let audio = utterance(&[(2_000, 3_000), (2_000, 0)], -70.0);
+        let mut clip = audio.clone();
+        let removed = shorten_pauses(&mut clip);
+        // 3 s of pause becomes its first 400 ms and last 300 ms.
+        assert_eq!(ms(removed), 2_300);
+        assert_eq!(clip.len(), audio.len() - removed);
+        let before = samples(Duration::from_millis(2_400));
+        assert_eq!(clip[..before], audio[..before]);
+        let after = samples(Duration::from_millis(2_300));
+        assert_eq!(clip[clip.len() - after..], audio[audio.len() - after..]);
+    }
+
+    #[test]
+    fn skip_pauses_leaves_short_pauses_and_word_gaps_alone() {
+        let audio = utterance(&[(2_000, 700), (2_000, 600), (2_000, 0)], -70.0);
+        let mut clip = audio.clone();
+        assert_eq!(shorten_pauses(&mut clip), 0);
+        assert_eq!(clip, audio);
+    }
+
+    #[test]
+    fn skip_pauses_shortens_leading_trailing_and_noisy_pauses() {
+        let mut audio = utterance(&[(0, 2_000), (2_000, 2_000), (2_000, 2_000)], -40.0);
+        let length = audio.len();
+        assert_eq!(ms(shorten_pauses(&mut audio)), 3 * 1_300);
+        assert_eq!(
+            audio.len(),
+            length - samples(Duration::from_millis(3 * 1_300))
+        );
+    }
+
+    #[test]
+    fn skip_pauses_leaves_a_clip_that_never_rises_above_the_floor_whole() {
+        // A quiet microphone whose speech never clears the floor (#841).
+        let mut seed = 5;
+        let audio = noise(8_000, -75.0, &mut seed);
+        let mut clip = audio.clone();
+        assert_eq!(shorten_pauses(&mut clip), 0);
+        assert_eq!(clip, audio);
     }
 }

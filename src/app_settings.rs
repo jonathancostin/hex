@@ -1354,7 +1354,7 @@ impl Default for ExperimentalSettings {
     }
 }
 
-/// The `labs` switches (`crate::labs`), every one off by default (`history_stats`: issue 790, `recent_dictations`: issue 877, macOS).
+/// The `labs` switches (`crate::labs`), every one off by default (`history_stats`: issue 790, `recent_dictations`: issue 877, macOS; `skip_pauses`: Linux, Windows).
 /// Labs features that already had a home keep it: `meetings.enabled`, `paste_with_shift`,
 /// `experimental.hex_microphone`, `keyboard_model_switching.enabled`, `pause_browser_media`,
 /// and `share_dictation_shortcut`. An older `labs.enabled` master switch is read and ignored.
@@ -1410,6 +1410,7 @@ pub struct LabsSettings {
     pub standalone_special_keys: bool,
     pub history_stats: bool,
     pub recent_dictations: bool,
+    pub skip_pauses: bool,
 }
 
 /// The idle times Labs › Unload model when idle offers, in minutes.
@@ -1442,6 +1443,7 @@ impl Default for LabsSettings {
             standalone_special_keys: false,
             history_stats: false,
             recent_dictations: false,
+            skip_pauses: false,
         }
     }
 }

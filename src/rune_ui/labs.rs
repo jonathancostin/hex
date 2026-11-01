@@ -323,6 +323,15 @@ fn rows(ui: &Ui) -> Vec<Row> {
         tr("Remove filler words"),
         tr("Remove filler words such as um and uh from dictations, without an AI model"),
     ));
+    // The Linux and Windows engine shortens pauses in the clip it finishes.
+    if caps.os != super::platform::Os::Macos {
+        rows.push(row(
+            Feature::SkipPauses,
+            &TIMER,
+            tr("Skip pauses"),
+            tr("Shorten long pauses before transcribing a finished dictation, so it pastes sooner"),
+        ));
+    }
     rows.push(row(
         Feature::HistoryStats,
         &HINTS,
@@ -401,6 +410,7 @@ fn row_key(feature: Feature) -> &'static str {
         Feature::StandaloneSpecialKeys => "lab-special-keys",
         Feature::HistoryStats => "lab-history-stats",
         Feature::RecentDictations => "lab-recent-dictations",
+        Feature::SkipPauses => "lab-skip-pauses",
     }
 }
 

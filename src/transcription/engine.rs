@@ -660,13 +660,23 @@ impl TranscriptionEngine {
     }
 
     /// Finishes a capture with its complete 16 kHz clip. Without a stream,
-    /// or when the stream is unusable, the clip is transcribed offline.
+    /// or when the stream is unusable, the clip is transcribed offline,
+    /// with its long pauses shortened first while Labs › Skip pauses is on.
     #[cfg(not(target_os = "macos"))]
     pub fn finish(&self, stream: Option<LiveStream>, clip: Vec<f32>) -> Result<PendingTranscript> {
         self.finish_with(
             stream,
             clip,
             Box::new(|model, mut clip| {
+                if crate::labs::skip_pauses() {
+                    let skipped = crate::transcription::pause_segmenter::shorten_pauses(&mut clip);
+                    if skipped > 0 {
+                        tracing::info!(
+                            skipped_ms = skipped / 16,
+                            "skipped pauses before transcribing the whole clip"
+                        );
+                    }
+                }
                 crate::dictation::pad_for_parakeet(&mut clip);
                 model
                     .transcribe(&clip)
